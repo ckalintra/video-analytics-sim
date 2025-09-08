@@ -1,0 +1,45 @@
+version: "3.8"
+services:
+  redpanda:
+    image: vectorized/redpanda:latest
+    command: start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M
+    ports:
+      - "9092:9092"   # Kafka API (mapped to host)
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "id"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: yandex/clickhouse-server:latest
+    ports:
+      - "8123:8123"   # HTTP
+      - "9000:9000"   # Native client
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9001:9000"
+    volumes:
+      - minio-data:/data
+
+  superset:
+    image: apache/superset:latest
+    environment:
+      SUPERSET_ENV: "development"
+    ports:
+      - "8088:8088"
+    depends_on:
+      - clickhouse
+
+volumes:
+  clickhouse-data:
+  minio-data:
