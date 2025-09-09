@@ -1,6 +1,11 @@
 const { Kafka } = require('kafkajs');
 const express = require('express');
 const { randomUUID } = require('crypto');
+const { createClient } = require('@clickhouse/client');
+
+const clickhouse = createClient({
+  host: 'http://localhost:8123',
+});
 
 const KAFKA_BROKER = process.env.KAFKA_BROKER || 'localhost:9092';
 const TOPIC = process.env.EVENT_TOPIC || 'events';
@@ -41,9 +46,30 @@ async function produce(payload) {
   const envelope = { event_id: randomUUID(), timestamp: new Date().toISOString(), ...payload, err_score: 0.0 };
   try {
     await producer.send({ topic: TOPIC, messages: [{ value: JSON.stringify(envelope) }] });
+    await logEventToClickhouse(envelope);
     console.log('server-event', envelope.event_type, envelope.session_id || '');
   } catch (err) {
     console.error('server produce failed', err);
+  }
+}
+
+async function logEventToClickhouse(event) {
+  try {
+    await clickhouse.insert({
+      table: 'events',
+      values: [{
+        event_time: new Date().toISOString().replace('T', ' ').split('.')[0],
+        user_id: event.user_id || 'unknown',
+        event_type: event.event_type || 'unknown',
+        video_id: event.video_id || 'none',
+        server_id: event.source_id || 'stream-srv',
+        payload: JSON.stringify(event)
+      }],
+      format: 'JSONEachRow',
+    });
+    console.log('[ClickHouse] inserted', event.event_type);
+  } catch (err) {
+    console.error('[ClickHouse] insert failed:', err.message);
   }
 }
 

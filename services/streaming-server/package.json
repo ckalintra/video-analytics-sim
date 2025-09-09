@@ -6,6 +6,7 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@clickhouse/client": "^1.12.1",
     "express": "^4.18.2",
     "kafkajs": "^2.2.4"
   }
